@@ -112,7 +112,7 @@ async function loadDonations(caseId) {
         <td><b>${x.amount} $</b></td>
         <td>${x.method === 'wish' ? '📲 ويش' : '🤝 يد بيد'}</td>
         <td>${esc((x.created_at || '').slice(0, 10))}</td>
-        <td>${x.status === 'verified' ? '<span class="badge verified">✅ موثق</span>' : '<span class="badge pending">⏳ بانتظار التوثيق</span>'}</td>
+        <td>${x.status === 'verified' ? `<span class="badge verified">✅ موثق</span>${x.verified_by ? `<div style="font-size:11px;color:#666">وثّقه ${esc(x.verified_by)}</div>` : ''}` : '<span class="badge pending">⏳ بانتظار التوثيق</span>'}</td>
       </tr>`).join('')}
     </table>`;
   } catch { div.innerHTML = 'تعذر تحميل التبرعات'; }

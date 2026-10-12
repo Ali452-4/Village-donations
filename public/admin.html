@@ -20,10 +20,13 @@
 <div class="wrap">
   <div class="card" id="loginCard">
     <h3>تسجيل الدخول</h3>
-    <label>كلمة سر المشرف</label>
-    <input type="password" id="pw" placeholder="••••••">
+    <label>اسم المشرف</label>
+    <input id="uname" placeholder="مثال: أحمد" autocomplete="username">
+    <label>كلمة السر</label>
+    <input type="password" id="pw" placeholder="••••••" autocomplete="current-password">
     <br><br>
     <button onclick="login()">دخول</button>
+    <div class="notice">أول دخول: استعمل اسم <b>admin</b> وكلمة سر المشرف الأصلية.</div>
   </div>
 
   <div id="panel" style="display:none">
@@ -38,6 +41,18 @@
         </select>
       </div>
       <div id="stats"></div>
+    </div>
+
+    <div class="card">
+      <h3>👥 المشرفون</h3>
+      <div class="notice">الحساب الحالي: <b id="meName"></b></div>
+      <div id="adminsList"></div>
+      <label>اسم مشرف جديد</label>
+      <input id="aName" placeholder="مثال: أحمد">
+      <label>كلمة السر (6 أحرف على الأقل)</label>
+      <input id="aPass" type="password" placeholder="••••••">
+      <br><br>
+      <button onclick="createAdmin()">إضافة مشرف</button>
     </div>
 
     <div class="card">

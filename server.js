@@ -36,7 +36,7 @@ app.get('/api/cases/:id', ah(async (req, res) => {
   const c = await db.get('SELECT * FROM cases WHERE id = ?', [req.params.id]);
   if (!c) return res.status(404).json({ error: 'الحالة غير موجودة' });
   const donations = await db.all(`
-    SELECT id, donor_name, amount, method, status, created_at
+    SELECT id, donor_name, amount, method, status, verified_by, created_at
     FROM donations WHERE case_id = ? ORDER BY id DESC
   `, [c.id]);
   res.json({ ...c, totals: await totalsForCase(c.id), donations });
@@ -65,17 +65,66 @@ app.post('/api/cases/:id/donate', ah(async (req, res) => {
   res.json({ ok: true, id: info.lastInsertRowid });
 }));
 
-// ---- حماية المشرف ----
+// ---- حماية المشرف (حسابات منفصلة + جلسات) ----
+const crypto = require('crypto');
+const sessions = new Map(); // token -> username
+
 function requireAdmin(req, res, next) {
   const k = req.headers['x-admin-key'] || req.query.key;
-  if (k !== ADMIN_PASSWORD) return res.status(401).json({ error: 'غير مصرح' });
-  next();
+  if (!k) return res.status(401).json({ error: 'غير مصرح' });
+  if (k === ADMIN_PASSWORD) { req.admin = 'admin'; return next(); } // توافق قديم
+  if (sessions.has(k)) { req.admin = sessions.get(k); return next(); }
+  return res.status(401).json({ error: 'غير مصرح' });
 }
 
-app.post('/api/admin/login', (req, res) => {
-  if (req.body.password === ADMIN_PASSWORD) return res.json({ ok: true });
+app.post('/api/admin/login', ah(async (req, res) => {
+  const username = String(req.body.username || '').trim();
+  const password = String(req.body.password || '');
+  // دخول حديث: اسم + كلمة سر
+  if (username) {
+    const a = await db.get('SELECT * FROM admins WHERE username = ?', [username]);
+    if (!a || !db.verifyPassword(password, a.password_hash)) {
+      return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
+    }
+    const token = crypto.randomBytes(32).toString('hex');
+    sessions.set(token, a.username);
+    return res.json({ ok: true, token, username: a.username });
+  }
+  // دخول قديم: كلمة السر المشتركة فقط
+  if (password === ADMIN_PASSWORD) {
+    const token = crypto.randomBytes(32).toString('hex');
+    sessions.set(token, 'admin');
+    return res.json({ ok: true, token, username: 'admin' });
+  }
   res.status(401).json({ error: 'كلمة السر غير صحيحة' });
-});
+}));
+
+// إدارة المشرفين (أي مشرف مسجل)
+app.get('/api/admin/admins', requireAdmin, ah(async (req, res) => {
+  res.json(await db.all('SELECT id, username, created_at FROM admins ORDER BY id ASC'));
+}));
+
+app.post('/api/admin/admins', requireAdmin, ah(async (req, res) => {
+  const username = String(req.body.username || '').trim();
+  const password = String(req.body.password || '');
+  if (username.length < 2) return res.status(400).json({ error: 'اسم المشرف مطلوب' });
+  if (password.length < 6) return res.status(400).json({ error: 'كلمة السر 6 أحرف على الأقل' });
+  const exists = await db.get('SELECT id FROM admins WHERE username = ?', [username]);
+  if (exists) return res.status(400).json({ error: 'هذا الاسم موجود' });
+  const info = await db.run('INSERT INTO admins (username, password_hash) VALUES (?, ?)',
+    [username, db.hashPassword(password)]);
+  res.json({ ok: true, id: info.lastInsertRowid });
+}));
+
+app.delete('/api/admin/admins/:id', requireAdmin, ah(async (req, res) => {
+  const a = await db.get('SELECT * FROM admins WHERE id = ?', [req.params.id]);
+  if (!a) return res.status(404).json({ error: 'غير موجود' });
+  if (a.username === req.admin) return res.status(400).json({ error: 'لا يمكنك حذف حسابك' });
+  const count = await db.get('SELECT COUNT(*) AS c FROM admins');
+  if (Number(count.c) <= 1) return res.status(400).json({ error: 'لا يمكن حذف آخر مشرف' });
+  await db.run('DELETE FROM admins WHERE id = ?', [a.id]);
+  res.json({ ok: true });
+}));
 
 app.post('/api/admin/cases', requireAdmin, ah(async (req, res) => {
   const title = String(req.body.title || '').trim();
@@ -127,13 +176,13 @@ app.get('/api/admin/donations', requireAdmin, ah(async (req, res) => {
 app.post('/api/admin/donations/:id/verify', requireAdmin, ah(async (req, res) => {
   const d = await db.get('SELECT * FROM donations WHERE id = ?', [req.params.id]);
   if (!d) return res.status(404).json({ error: 'غير موجود' });
-  if (db.USE_PG) await db.run("UPDATE donations SET status='verified', verified_at=NOW() WHERE id=?", [d.id]);
-  else await db.run("UPDATE donations SET status='verified', verified_at=datetime('now') WHERE id=?", [d.id]);
+  if (db.USE_PG) await db.run("UPDATE donations SET status='verified', verified_at=NOW(), verified_by=? WHERE id=?", [req.admin, d.id]);
+  else await db.run("UPDATE donations SET status='verified', verified_at=datetime('now'), verified_by=? WHERE id=?", [req.admin, d.id]);
   res.json({ ok: true });
 }));
 
 app.post('/api/admin/donations/:id/unverify', requireAdmin, ah(async (req, res) => {
-  await db.run("UPDATE donations SET status='pending', verified_at=NULL WHERE id=?", [req.params.id]);
+  await db.run("UPDATE donations SET status='pending', verified_at=NULL, verified_by='' WHERE id=?", [req.params.id]);
   res.json({ ok: true });
 }));
 
@@ -151,7 +200,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'خطأ في السيرفر' });
 });
 
-db.init().then(() => {
+db.init().then(() => db.ensureMasterAdmin(ADMIN_PASSWORD)).then(() => {
   app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
 }).catch((e) => {
   console.error('DB init failed:', e);

@@ -1,4 +1,5 @@
-function key() { return localStorage.getItem('admin_key') || ''; }
+function key() { return localStorage.getItem('admin_token') || localStorage.getItem('admin_key') || ''; }
+function me() { return localStorage.getItem('admin_user') || ''; }
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 async function api(url, opts = {}) {
   const r = await fetch(url, { headers: { 'Content-Type': 'application/json', 'x-admin-key': key() }, ...opts });
@@ -8,20 +9,25 @@ async function api(url, opts = {}) {
 }
 
 async function login() {
+  const username = document.getElementById('uname').value.trim();
   const password = document.getElementById('pw').value;
-  const r = await fetch('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) });
-  if (!r.ok) return alert('كلمة السر غير صحيحة');
-  localStorage.setItem('admin_key', password);
+  const r = await fetch('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
+  if (!r.ok) return alert('بيانات الدخول غير صحيحة');
+  const data = await r.json();
+  localStorage.setItem('admin_token', data.token);
+  localStorage.setItem('admin_user', data.username);
+  localStorage.removeItem('admin_key');
   show();
 }
-function logout() { localStorage.removeItem('admin_key'); location.reload(); }
+function logout() { localStorage.removeItem('admin_token'); localStorage.removeItem('admin_user'); localStorage.removeItem('admin_key'); location.reload(); }
 function show() {
   if (!key()) return;
   document.getElementById('loginCard').style.display = 'none';
   document.getElementById('panel').style.display = 'block';
+  document.getElementById('meName').textContent = me();
   loadAll();
 }
-function loadAll() { loadCasesAdmin(); loadDonations(); }
+function loadAll() { loadCasesAdmin(); loadDonations(); loadAdmins(); }
 
 let CASES = [];
 const statusLabelA = (s) => s === 'active' ? 'نشطة' : s === 'archived' ? '🗄 مؤرشفة' : 'مغلقة';
@@ -60,7 +66,7 @@ async function loadDonations() {
       <td dir="ltr"><a href="tel:${esc(d.phone)}">${esc(d.phone)}</a></td>
       <td><b>${d.amount} $</b></td>
       <td>${d.method === 'wish' ? '📲 ويش' : '🤝 يد بيد'}</td>
-      <td>${d.status === 'verified' ? '<span class="badge verified">✅ موثق</span>' : '<span class="badge pending">⏳ منتظر</span>'}</td>
+      <td>${d.status === 'verified' ? `<span class="badge verified">✅ موثق</span>${d.verified_by ? `<div style="font-size:11px;color:#666">بواسطة ${esc(d.verified_by)}</div>` : ''}` : '<span class="badge pending">⏳ منتظر</span>'}</td>
       <td style="white-space:nowrap">
         ${d.status === 'pending'
           ? `<button class="small" onclick="verify(${d.id})">توثيق الاستلام ✅</button>`
@@ -106,6 +112,33 @@ async function delDon(id) {
   if (!confirm('حذف هذا التبرع؟')) return;
   await api('/api/admin/donations/' + id, { method: 'DELETE' });
   loadAll();
+}
+async function loadAdmins() {
+  try {
+    const list = await api('/api/admin/admins');
+    document.getElementById('adminsList').innerHTML = list.map(a =>
+      `<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e6eaef;padding:6px 0;font-size:14px">
+        <span>👤 <b>${esc(a.username)}</b></span>
+        <button class="small ghost" onclick="delAdmin(${a.id},'${esc(a.username)}')">حذف</button>
+      </div>`).join('') || 'لا مشرفين';
+  } catch { document.getElementById('adminsList').innerHTML = 'تعذر التحميل'; }
+}
+async function createAdmin() {
+  try {
+    await api('/api/admin/admins', { method: 'POST', body: JSON.stringify({
+      username: document.getElementById('aName').value,
+      password: document.getElementById('aPass').value,
+    })});
+    alert('تمت إضافة المشرف');
+    document.getElementById('aName').value = '';
+    document.getElementById('aPass').value = '';
+    loadAdmins();
+  } catch (e) { alert(e.message); }
+}
+async function delAdmin(id, name) {
+  if (!confirm(`حذف المشرف ${name}؟`)) return;
+  try { await api('/api/admin/admins/' + id, { method: 'DELETE' }); loadAdmins(); }
+  catch (e) { alert(e.message); }
 }
 function exportCSV() {
   const rows = [['id','case','donor','phone','amount','method','status','date'],
