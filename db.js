@@ -70,6 +70,7 @@ async function init() {
       id SERIAL PRIMARY KEY,
       username TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
+      role TEXT DEFAULT 'admin',
       created_at TIMESTAMPTZ DEFAULT NOW()
     )`);
     const cols = await all(
@@ -84,6 +85,13 @@ async function init() {
     if (!dcols.some(c => c.name === 'verified_by')) {
       await run(`ALTER TABLE donations ADD COLUMN verified_by TEXT DEFAULT ''`);
     }
+    const acols = await all(
+      `SELECT column_name AS name FROM information_schema.columns WHERE table_name = 'admins'`
+    );
+    if (!acols.some(c => c.name === 'role')) {
+      await run(`ALTER TABLE admins ADD COLUMN role TEXT DEFAULT 'admin'`);
+    }
+    await run(`UPDATE admins SET role = 'master' WHERE username = 'admin' AND (role IS NULL OR role <> 'master')`);
   } else {
     sqliteDb.exec(`CREATE TABLE IF NOT EXISTS cases (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -115,8 +123,13 @@ async function init() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
+      role TEXT DEFAULT 'admin',
       created_at TEXT DEFAULT (datetime('now'))
     )`);
+    const acols = sqliteDb.prepare('PRAGMA table_info(admins)').all();
+    if (!acols.some(c => c.name === 'role')) {
+      sqliteDb.exec("ALTER TABLE admins ADD COLUMN role TEXT DEFAULT 'admin'");
+    }
     const dcols = sqliteDb.prepare('PRAGMA table_info(donations)').all();
     if (!dcols.some(c => c.name === 'verified_by')) {
       sqliteDb.exec("ALTER TABLE donations ADD COLUMN verified_by TEXT DEFAULT ''");
@@ -155,10 +168,12 @@ function verifyPassword(password, stored) {
 async function ensureMasterAdmin(masterPassword) {
   const row = await get('SELECT COUNT(*) AS c FROM admins');
   if (Number(row.c) === 0) {
-    await run('INSERT INTO admins (username, password_hash) VALUES (?, ?)',
-      ['admin', hashPassword(masterPassword)]);
+    await run('INSERT INTO admins (username, password_hash, role) VALUES (?, ?, ?)',
+      ['admin', hashPassword(masterPassword), 'master']);
     console.log('Seeded master admin account: admin');
   }
+  // ترقية حساب admin العام دائما لدور master (لقواعد أنشئت قبل الأدوار)
+  await run(`UPDATE admins SET role = 'master' WHERE username = 'admin'`);
 }
 
 module.exports = { all, get, run, init, ensureMasterAdmin, hashPassword, verifyPassword, USE_PG };

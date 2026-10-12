@@ -88,23 +88,32 @@ app.post('/api/admin/login', ah(async (req, res) => {
     }
     const token = crypto.randomBytes(32).toString('hex');
     sessions.set(token, a.username);
-    return res.json({ ok: true, token, username: a.username });
+    return res.json({ ok: true, token, username: a.username, role: a.role || 'admin' });
   }
   // دخول قديم: كلمة السر المشتركة فقط
   if (password === ADMIN_PASSWORD) {
     const token = crypto.randomBytes(32).toString('hex');
     sessions.set(token, 'admin');
-    return res.json({ ok: true, token, username: 'admin' });
+    return res.json({ ok: true, token, username: 'admin', role: 'master' });
   }
   res.status(401).json({ error: 'كلمة السر غير صحيحة' });
 }));
 
-// إدارة المشرفين (أي مشرف مسجل)
-app.get('/api/admin/admins', requireAdmin, ah(async (req, res) => {
-  res.json(await db.all('SELECT id, username, created_at FROM admins ORDER BY id ASC'));
+// إدارة المشرفين: للمشرف العام (master) فقط
+const requireMaster = [requireAdmin, ah(async (req, res, next) => {
+  const row = await db.get('SELECT role FROM admins WHERE username = ?', [req.admin]);
+  if (!row || (row.role || 'admin') !== 'master') {
+    return res.status(403).json({ error: 'هذه الصلاحية للمشرف العام فقط' });
+  }
+  next();
+})];
+
+// إدارة المشرفين
+app.get('/api/admin/admins', requireMaster, ah(async (req, res) => {
+  res.json(await db.all('SELECT id, username, role, created_at FROM admins ORDER BY id ASC'));
 }));
 
-app.post('/api/admin/admins', requireAdmin, ah(async (req, res) => {
+app.post('/api/admin/admins', requireMaster, ah(async (req, res) => {
   const username = String(req.body.username || '').trim();
   const password = String(req.body.password || '');
   if (username.length < 2) return res.status(400).json({ error: 'اسم المشرف مطلوب' });
@@ -116,7 +125,7 @@ app.post('/api/admin/admins', requireAdmin, ah(async (req, res) => {
   res.json({ ok: true, id: info.lastInsertRowid });
 }));
 
-app.delete('/api/admin/admins/:id', requireAdmin, ah(async (req, res) => {
+app.delete('/api/admin/admins/:id', requireMaster, ah(async (req, res) => {
   const a = await db.get('SELECT * FROM admins WHERE id = ?', [req.params.id]);
   if (!a) return res.status(404).json({ error: 'غير موجود' });
   if (a.username === req.admin) return res.status(400).json({ error: 'لا يمكنك حذف حسابك' });

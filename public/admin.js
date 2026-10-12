@@ -16,18 +16,21 @@ async function login() {
   const data = await r.json();
   localStorage.setItem('admin_token', data.token);
   localStorage.setItem('admin_user', data.username);
+  localStorage.setItem('admin_role', data.role || 'admin');
   localStorage.removeItem('admin_key');
   show();
 }
-function logout() { localStorage.removeItem('admin_token'); localStorage.removeItem('admin_user'); localStorage.removeItem('admin_key'); location.reload(); }
+function logout() { localStorage.removeItem('admin_token'); localStorage.removeItem('admin_user'); localStorage.removeItem('admin_role'); localStorage.removeItem('admin_key'); location.reload(); }
+function isMaster() { return localStorage.getItem('admin_role') === 'master'; }
 function show() {
   if (!key()) return;
   document.getElementById('loginCard').style.display = 'none';
   document.getElementById('panel').style.display = 'block';
-  document.getElementById('meName').textContent = me();
+  document.getElementById('meName').textContent = me() + (isMaster() ? ' (مشرف عام)' : '');
+  document.getElementById('adminsCard').style.display = isMaster() ? 'block' : 'none';
   loadAll();
 }
-function loadAll() { loadCasesAdmin(); loadDonations(); loadAdmins(); }
+function loadAll() { loadCasesAdmin(); loadDonations(); if (isMaster()) loadAdmins(); }
 
 let CASES = [];
 const statusLabelA = (s) => s === 'active' ? 'نشطة' : s === 'archived' ? '🗄 مؤرشفة' : 'مغلقة';
@@ -118,7 +121,7 @@ async function loadAdmins() {
     const list = await api('/api/admin/admins');
     document.getElementById('adminsList').innerHTML = list.map(a =>
       `<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e6eaef;padding:6px 0;font-size:14px">
-        <span>👤 <b>${esc(a.username)}</b></span>
+        <span>👤 <b>${esc(a.username)}</b> ${a.role === 'master' ? '<span class="badge verified">عام</span>' : ''}</span>
         <button class="small ghost" onclick="delAdmin(${a.id},'${esc(a.username)}')">حذف</button>
       </div>`).join('') || 'لا مشرفين';
   } catch { document.getElementById('adminsList').innerHTML = 'تعذر التحميل'; }
