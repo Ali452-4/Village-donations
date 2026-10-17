@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>من نحن - تبرعات القرية</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="wrap topbar">
+    <div>
+      <h1>🤝 تبرعات القرية</h1>
+      <p>من نحن</p>
+    </div>
+    <a class="admin-link" href="index.html">→ الحالات</a>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="card">
+    <h2 class="case-title">من نحن</h2>
+    <div class="case-desc" id="aboutText">
+      مجموعة تطوعية من أهل القرية نجمع التبرعات للحالات الطارئة والمرضى، ونتكفل بتسليمها مباشرة أو عبر تطبيقات التحويل.
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>كيف نعمل؟</h3>
+    <div class="case-desc">
+      <ul style="padding-right:20px;line-height:2">
+        <li>نُعلن الحالة وتفاصيلها والمبلغ المطلوب على الموقع.</li>
+        <li>يسجّل المتبرع اسمه ورقم هاتفه والمبلغ وطريقة التسليم.</li>
+        <li>التبرع يظهر للجميع بحالة <b>⏳ بانتظار التوثيق</b> — ما يعني لم يُستلم بعد.</li>
+        <li>نستلم المبلغ (يدا بيد أو عبر التحويل) ثم يوثّقه المشرف فيتحول إلى <b>✅ موثق</b>.</li>
+        <li>كل توثيق يظهر باسم المشرف الذي قام به.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>🏥 الحالات</h3>
+    <div class="case-desc">الحالات الجارية والمؤرشفة كلها متاحة في <a href="index.html">صفحة التبرعات</a>.</div>
+  </div>
+
+  <div class="card">
+    <h3>📞 للتواصل</h3>
+    <div class="case-desc">
+      نتواصل مع كل متبرع على رقم هاتفه الذي تركه عند التسجيل لتسليم المبلغ أو تأكيده.
+    </div>
+  </div>
+</div>
+
+<footer>الأرقام الموثقة ✅ هي المبالغ المستلمة فعلا. المعلنة ⏳ بانتظار التسليم والتوثيق.</footer>
+
+<script>
+// تحميل نص "من نحن" من لوحة المشرف إن كان محددا
+fetch('/api/about').then(r => r.ok ? r.json() : null).then(d => {
+  if (d && d.text) document.getElementById('aboutText').textContent = d.text;
+}).catch(() => {});
+</script>
+</body>
+</html>

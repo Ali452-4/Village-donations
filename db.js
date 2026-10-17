@@ -91,6 +91,10 @@ async function init() {
     if (!acols.some(c => c.name === 'role')) {
       await run(`ALTER TABLE admins ADD COLUMN role TEXT DEFAULT 'admin'`);
     }
+    await run(`CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      text TEXT DEFAULT ''
+    )`);
     await run(`UPDATE admins SET role = 'master' WHERE username = 'admin' AND (role IS NULL OR role <> 'master')`);
   } else {
     sqliteDb.exec(`CREATE TABLE IF NOT EXISTS cases (
@@ -130,6 +134,10 @@ async function init() {
     if (!acols.some(c => c.name === 'role')) {
       sqliteDb.exec("ALTER TABLE admins ADD COLUMN role TEXT DEFAULT 'admin'");
     }
+    sqliteDb.exec(`CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      text TEXT DEFAULT ''
+    )`);
     const dcols = sqliteDb.prepare('PRAGMA table_info(donations)').all();
     if (!dcols.some(c => c.name === 'verified_by')) {
       sqliteDb.exec("ALTER TABLE donations ADD COLUMN verified_by TEXT DEFAULT ''");

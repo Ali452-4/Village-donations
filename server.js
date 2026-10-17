@@ -6,6 +6,7 @@ const db = require('./db');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+const USE_PG_MODE = !!process.env.DATABASE_URL;
 
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -201,6 +202,33 @@ app.delete('/api/admin/donations/:id', requireAdmin, ah(async (req, res) => {
 }));
 
 app.get('/health', (req, res) => res.json({ ok: true }));
+
+// ---- نص صفحة "من نحن" (قابل للتعديل من لوحة المشرف) ----
+app.get('/api/about', ah(async (req, res) => {
+  const row = await db.get('SELECT text FROM settings WHERE key = ?', ['about_text']);
+  res.json({ text: row ? row.text : '' });
+}));
+
+app.get('/api/admin/about', requireAdmin, ah(async (req, res) => {
+  const row = await db.get('SELECT text FROM settings WHERE key = ?', ['about_text']);
+  res.json({ text: row ? row.text : '' });
+}));
+
+app.put('/api/admin/about', requireAdmin, ah(async (req, res) => {
+  const text = String(req.body.text || '');
+  if (USE_PG_MODE) {
+    await db.run(
+      `INSERT INTO settings (key, text) VALUES (?, ?)
+       ON CONFLICT (key) DO UPDATE SET text = EXCLUDED.text`,
+      ['about_text', text]
+    );
+  } else {
+    const exists = await db.get('SELECT key FROM settings WHERE key = ?', ['about_text']);
+    if (exists) await db.run('UPDATE settings SET text = ? WHERE key = ?', [text, 'about_text']);
+    else await db.run('INSERT INTO settings (key, text) VALUES (?, ?)', ['about_text', text]);
+  }
+  res.json({ ok: true });
+}));
 
 // معالج أخطاء عام
 // eslint-disable-next-line no-unused-vars

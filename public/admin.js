@@ -30,7 +30,20 @@ function show() {
   document.getElementById('adminsCard').style.display = isMaster() ? 'block' : 'none';
   loadAll();
 }
-function loadAll() { loadCasesAdmin(); loadDonations(); if (isMaster()) loadAdmins(); }
+function loadAll() { loadCasesAdmin(); loadDonations(); if (isMaster()) loadAdmins(); loadAbout(); }
+
+async function loadAbout() {
+  try {
+    const d = await api('/api/admin/about');
+    document.getElementById('aboutTextBox').value = d.text || '';
+  } catch {}
+}
+async function saveAbout() {
+  try {
+    await api('/api/admin/about', { method: 'PUT', body: JSON.stringify({ text: document.getElementById('aboutTextBox').value }) });
+    alert('تم حفظ نص صفحة من نحن');
+  } catch (e) { alert(e.message); }
+}
 
 let CASES = [];
 const statusLabelA = (s) => s === 'active' ? 'نشطة' : s === 'archived' ? '🗄 مؤرشفة' : 'مغلقة';

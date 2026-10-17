@@ -13,6 +13,7 @@
       <h1>🛠 لوحة المشرف</h1>
       <p>توثيق استلام التبرعات وإدارة الحالات</p>
     </div>
+    <a class="admin-link" href="about.html">من نحن</a>
     <a class="admin-link" href="index.html">→ صفحة المتبرعين</a>
   </div>
 </header>
@@ -41,6 +42,14 @@
         </select>
       </div>
       <div id="stats"></div>
+    </div>
+
+    <div class="card">
+      <h3>📄 صفحة من نحن</h3>
+      <label>النص (اتركه فارغا لاستخدام النص الافتراضي)</label>
+      <textarea id="aboutTextBox" rows="6" placeholder="اكتب نبذة عن المجموعة..."></textarea>
+      <br><br>
+      <button onclick="saveAbout()">حفظ النص</button>
     </div>
 
     <div class="card" id="adminsCard">
